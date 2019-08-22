@@ -2,7 +2,7 @@
 
 Cross-platform daemon for managing hosts file.
 
-The main idea was simplifying access to Medium DNS without tinkering with DNS servers but with updating hosts file. After seconds idea appeared: make it configurable and able to use not only Medium DNS repository for obtaining domain names.\
+The main idea was simplifying access to Medium DNS without tinkering with DNS servers but with updating hosts file. After seconds idea appeared: make it configurable and able to use not only Medium DNS repository for obtaining domain names.
 
 What it do:
 

@@ -39,47 +39,71 @@ func FixHosts(data *structs.HTTPResponse) {
 		return
 	}
 
-	// Good as "first strike algo" but should be rewritten into something
-	// more readable.
-	var domainsToAdd []structs.Host
-	var addressesToDelete []string
+	// Iteration one - add new domains.
 	for _, domain := range data.Domains {
-		var domainAlreadyAdded bool
-		var locallyKnownAddress string
-		for _, knownAddress := range hostsData.Hosts {
-			for _, domainName := range knownAddress.Domains {
-				if domainName == domain.Domain {
-					domainAlreadyAdded = true
-					locallyKnownAddress = knownAddress.Address
+		hostsAddressData, hostsAddressDataFound := hostsData.Hosts[domain.IPv6]
+		if hostsAddressDataFound {
+			// Check if we have this domain already. Add to domains list
+			// if not.
+			var domainAlreadyInHosts bool
+			for _, knownDomain := range hostsAddressData.Domains {
+				if domain.Domain == knownDomain {
+					log.Debug().Str("IPv6 address", domain.IPv6).Str("domain", domain.Domain).Msg("Domain already known and added to hosts")
+					domainAlreadyInHosts = true
+				}
+			}
+
+			if !domainAlreadyInHosts {
+				log.Debug().Str("IPv6 address", domain.IPv6).Str("domain", domain.Domain).Msg("New domain found, adding...")
+				hostsAddressData.Domains = append(hostsAddressData.Domains, domain.Domain)
+			}
+		}
+	}
+
+	// Iteration two - delete unknown (anymore) domains that isn't exist
+	// (anymore) in any source.
+	// Key is an IP address, values are domains names.
+	domainsToDelete := make(map[string][]string)
+	for _, hostsLine := range hostsData.Hosts {
+		for _, locallyKnownDomain := range hostsLine.Domains {
+			var domainShouldBeDeleted = true
+			for _, remoteDomain := range data.Domains {
+				if locallyKnownDomain == remoteDomain.Domain && hostsLine.Address == remoteDomain.IPv6 {
+					domainShouldBeDeleted = false
+				}
+			}
+
+			if domainShouldBeDeleted {
+				log.Debug().Str("IPv6 address", hostsLine.Address).Str("domain", locallyKnownDomain).Msg("Domain disappeared, will remove it from hosts file")
+				listForDeletion, listForDeletionFound := domainsToDelete[hostsLine.Address]
+				if !listForDeletionFound {
+					domainsToDelete[hostsLine.Address] = make([]string, 0, 32)
+				}
+				domainsToDelete[hostsLine.Address] = append(listForDeletion, locallyKnownDomain)
+			}
+		}
+	}
+
+	log.Info().Int("domains to delete", len(domainsToDelete)).Int("known addresses", len(hostsData.Hosts)).Msg("Statistics")
+
+	// Remove domains that disappeared.
+	for address, domains := range domainsToDelete {
+		domainsList, domainsListFound := hostsData.Hosts[address]
+		if !domainsListFound {
+			log.Error().Str("IPv6 address", address).Msg("Can't find IPv6 address in parsed hosts file structure! This will lead to data inconsistency! Please report to developers at https://github.com/medium-isp/hostsd and attach your hosts file for debugging! hostsd won't update your hosts file until this error message disappears.")
+			return
+		}
+
+		for _, domainToDelete := range domains {
+			var idx int
+			for i, knownDomain := range domainsList.Domains {
+				if domainToDelete == knownDomain {
+					idx = i
 					break
 				}
 			}
-			if domainAlreadyAdded {
-				break
-			}
+			domainsList.Domains = append(domainsList.Domains[:idx], domainsList.Domains[idx+1:]...)
 		}
-
-		if domainAlreadyAdded {
-			addressesToDelete = append(addressesToDelete, locallyKnownAddress)
-		}
-
-		domainData := structs.Host{
-			Address: domain.IPv6,
-			Domains: []string{domain.Domain},
-		}
-		domainsToAdd = append(domainsToAdd, domainData)
-	}
-
-	log.Debug().Msgf("Addresses to delete from hosts file: %+v", addressesToDelete)
-	log.Debug().Msgf("Domains to add: %+v", domainsToAdd)
-
-	// Reformat hosts file data. First - remove things.
-	for _, addressToDelete := range addressesToDelete {
-		delete(hostsData.Hosts, addressToDelete)
-	}
-	// Then - add new hosts.
-	for _, domainToAdd := range domainsToAdd {
-		hostsData.Hosts[domainToAdd.Address] = &structs.Host{Address: domainToAdd.Address, Domains: domainToAdd.Domains}
 	}
 
 	saveHostsData(hostsData)
