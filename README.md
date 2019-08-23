@@ -29,4 +29,4 @@ and move file to ``/usr/local/bin``, for example.
 
 ## Configuration
 
-Nothing should be configured by default. See [config struct](/internal/configuration/config.go) for available options. They should be specified as environment variables, like ``HOSTS_PATH``.
+Nothing should be configured by default. See [documentation](/doc/configuration.md) about list of available environment variables and expected values.

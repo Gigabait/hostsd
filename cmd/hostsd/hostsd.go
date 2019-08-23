@@ -8,7 +8,10 @@ import (
 
 	// local
 	"github.com/medium-isp/hostsd/daemon/downloader"
+	"github.com/medium-isp/hostsd/daemon/dynamicconfig"
 	"github.com/medium-isp/hostsd/daemon/hosts"
+	"github.com/medium-isp/hostsd/daemon/httpserver"
+	"github.com/medium-isp/hostsd/daemon/status"
 	"github.com/medium-isp/hostsd/internal/configuration"
 	"github.com/medium-isp/hostsd/internal/logger"
 )
@@ -19,8 +22,14 @@ func main() {
 
 	configuration.Initialize()
 
+	httpserver.Initialize()
 	hosts.Initialize()
 	downloader.Initialize()
+	dynamicconfig.Initialize()
+
+	status.Initialize()
+
+	httpserver.Start()
 
 	// CTRL+C handler.
 	signalHandler := make(chan os.Signal, 1)
